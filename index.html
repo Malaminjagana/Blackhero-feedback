@@ -215,8 +215,38 @@ function renderFeedbacks(){
   document.getElementById('stat-approved').textContent=feedbacks.filter(f=>f.approved).length;
   document.getElementById('stat-today').textContent=feedbacks.filter(f=>new Date(f.created_at).toDateString()===new Date().toDateString()).length;
   const box=document.getElementById('feedback-list');
-  if(!list.length){ box.innerHTML=`<section class="empty"><h2>Noch keine Rückmeldungen vorhanden.</h2><p>${feedbacks.length?'Für diese Suche oder diesen Filter gibt es keinen Treffer.':'Sobald ein Kunde Feedback sendet, erscheint es hier.'}</p><button class="btn-ghost" onclick="showView('customer')">Zur Kundenansicht</button></section>`; return; }
-  box.innerHTML=list.map(f=>`<article class="fb"><div class="fb-top"><div class="person"><div class="avatar">${esc((f.name||'A').slice(0,1).toUpperCase())}</div><div><strong>${esc(f.name||'Anonym')}</strong><small>${esc(f.company||'Kein Unternehmen angegeben')}</small></div></div><span class="pill ${f.approved?'ok':'new'}">${f.approved?'Freigegeben':'Neu'}</span></div><p>${esc(f.message)}</p><div class="meta">${f.rating?`★ ${f.rating} von 5 &nbsp;•&nbsp; `:''}${fmtDate(f.created_at)}</div><div class="actions"><button class="btn-small" onclick="toggleApprove('${f.id}',${!!f.approved})">${f.approved?'Freigabe entfernen':'Freigeben'}</button><button class="btn-danger" onclick="deleteFeedback('${f.id}')">Entfernen</button></div></article>`).join('');
+  box.replaceChildren();
+  if(!list.length){
+    const empty=document.createElement('section'); empty.className='empty';
+    const heading=document.createElement('h2'); heading.textContent='Noch keine Rückmeldungen vorhanden.';
+    const description=document.createElement('p'); description.textContent=feedbacks.length?'Für diese Suche oder diesen Filter gibt es keinen Treffer.':'Sobald ein Kunde Feedback sendet, erscheint es hier.';
+    const customerButton=document.createElement('button'); customerButton.className='btn-ghost'; customerButton.textContent='Zur Kundenansicht';
+    customerButton.addEventListener('click',()=>showView('customer'));
+    empty.append(heading,description,customerButton); box.append(empty); return;
+  }
+  list.forEach(f=>{
+    const article=document.createElement('article'); article.className='fb';
+    const top=document.createElement('div'); top.className='fb-top';
+    const person=document.createElement('div'); person.className='person';
+    const avatar=document.createElement('div'); avatar.className='avatar'; avatar.textContent=String(f.name||'A').slice(0,1).toUpperCase();
+    const details=document.createElement('div');
+    const name=document.createElement('strong'); name.textContent=f.name||'Anonym';
+    const company=document.createElement('small'); company.textContent=f.company||'Kein Unternehmen angegeben';
+    details.append(name,company); person.append(avatar,details);
+    const approval=document.createElement('span'); approval.className=`pill ${f.approved?'ok':'new'}`; approval.textContent=f.approved?'Freigegeben':'Neu';
+    top.append(person,approval);
+    const message=document.createElement('p'); message.textContent=f.message||'';
+    const meta=document.createElement('div'); meta.className='meta';
+    const safeRating=Number.isInteger(f.rating)&&f.rating>=1&&f.rating<=5?f.rating:0;
+    meta.textContent=`${safeRating?`★ ${safeRating} von 5  •  `:''}${fmtDate(f.created_at)}`;
+    const actions=document.createElement('div'); actions.className='actions';
+    const approveButton=document.createElement('button'); approveButton.className='btn-small'; approveButton.dataset.id=f.id;
+    approveButton.textContent=f.approved?'Freigabe entfernen':'Freigeben';
+    approveButton.addEventListener('click',()=>toggleApprove(approveButton.dataset.id,!!f.approved));
+    const deleteButton=document.createElement('button'); deleteButton.className='btn-danger'; deleteButton.dataset.id=f.id; deleteButton.textContent='Entfernen';
+    deleteButton.addEventListener('click',()=>deleteFeedback(deleteButton.dataset.id));
+    actions.append(approveButton,deleteButton); article.append(top,message,meta,actions); box.append(article);
+  });
 }
 async function toggleApprove(id,current){
   try{ const res=await fetch(`${SUPABASE_URL}/rest/v1/feedbacks?id=eq.${id}`,{method:'PATCH',headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({approved:!current})}); if(!res.ok) throw new Error(await res.text()); loadFeedbacks(); }catch(e){ showStatus(document.getElementById('admin-status'),false,'Änderung konnte nicht gespeichert werden.'); }
